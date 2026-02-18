@@ -25,18 +25,6 @@ python3 -m http.server 4173
 
 Then open: <http://localhost:4173>
 
-## Deploy a temporary public preview
-
-If you want a quick shareable URL to test in a browser (without setting up cloud hosting), run:
-
-```bash
-./scripts/deploy_preview.sh
-```
-
-This starts a local static server and opens a LocalTunnel URL that you can share.
-
-> Note: LocalTunnel URLs are temporary and only stay online while the command is running.
-
 ## Notes
 
 - The app compares rows by the first column (key).
