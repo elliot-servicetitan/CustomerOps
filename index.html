@@ -133,34 +133,6 @@
       border-radius: 10px;
     }
 
-    .diff-summary-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .diff-summary-card {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
-      background: #f8fafc;
-    }
-
-    .diff-summary-card h4 {
-      margin: 0 0 6px;
-      font-size: 0.9rem;
-      color: var(--muted);
-      font-weight: 600;
-    }
-
-    .diff-summary-count {
-      margin: 0;
-      font-size: 1.35rem;
-      font-weight: 700;
-      color: var(--text);
-    }
-
     table {
       border-collapse: collapse;
       width: 100%;
@@ -224,12 +196,6 @@
     </section>
 
     <section class="card">
-      <h3>Diff Summary by Value Column</h3>
-      <p class="muted">Shows how many keys changed for each value column, so you can quickly verify where differences exist.</p>
-      <div id="diff-summary-grid" class="diff-summary-grid"></div>
-    </section>
-
-    <section class="card">
       <div class="table-wrap">
         <table id="diff-table">
           <thead></thead>
@@ -258,7 +224,6 @@
     const downloadCsvBtn = document.getElementById('download-csv');
     const downloadXlsxBtn = document.getElementById('download-xlsx');
     const summaryPill = document.getElementById('summary');
-    const diffSummaryGrid = document.getElementById('diff-summary-grid');
     const tableHead = document.querySelector('#diff-table thead');
     const tableBody = document.querySelector('#diff-table tbody');
 
@@ -333,7 +298,6 @@
 
       const keyHeader = headers[0];
       const valueHeaders = headers.slice(1);
-      const columnDiffCounts = Object.fromEntries(valueHeaders.map(header => [header, 0]));
       const oldMap = new Map(oldRows.map(r => [String(r[keyHeader] ?? ''), r]));
       const newMap = new Map(newRows.map(r => [String(r[keyHeader] ?? ''), r]));
       const keys = [...new Set([...oldMap.keys(), ...newMap.keys()])].sort((a, b) => a.localeCompare(b));
@@ -345,11 +309,6 @@
         const after = newMap.get(key);
 
         if (!before && after) {
-          valueHeaders.forEach(header => {
-            if (formatValue(after[header]) !== '') {
-              columnDiffCounts[header] += 1;
-            }
-          });
           diffRows.push({
             status: 'added',
             [keyHeader]: key,
@@ -359,11 +318,6 @@
         }
 
         if (before && !after) {
-          valueHeaders.forEach(header => {
-            if (formatValue(before[header]) !== '') {
-              columnDiffCounts[header] += 1;
-            }
-          });
           diffRows.push({
             status: 'removed',
             [keyHeader]: key,
@@ -387,16 +341,10 @@
           if (oldNum !== null && newNum !== null) {
             const diff = newNum - oldNum;
             payload[`${header} (diff)`] = diff;
-            if (diff !== 0) {
-              changed = true;
-              columnDiffCounts[header] += 1;
-            }
+            if (diff !== 0) changed = true;
           } else {
             payload[`${header} (diff)`] = oldVal === newVal ? '' : `${formatValue(oldVal)} → ${formatValue(newVal)}`;
-            if (oldVal !== newVal) {
-              changed = true;
-              columnDiffCounts[header] += 1;
-            }
+            if (oldVal !== newVal) changed = true;
           }
         }
 
@@ -404,45 +352,7 @@
         diffRows.push(payload);
       }
 
-      return {
-        headers: [keyHeader, ...valueHeaders.flatMap(h => [`${h} (old)`, `${h} (new)`, `${h} (diff)`]), 'status'],
-        diffRows,
-        valueHeaders,
-        columnDiffCounts
-      };
-    };
-
-    const renderDiffSummary = (valueHeaders, columnDiffCounts) => {
-      diffSummaryGrid.innerHTML = '';
-
-      valueHeaders.forEach(header => {
-        const card = document.createElement('article');
-        card.className = 'diff-summary-card';
-
-        const title = document.createElement('h4');
-        title.textContent = header;
-
-        const count = document.createElement('p');
-        count.className = 'diff-summary-count';
-        count.textContent = `${columnDiffCounts[header] ?? 0}`;
-
-        const detail = document.createElement('p');
-        detail.className = 'muted';
-        detail.textContent = 'keys with diffs';
-
-        card.appendChild(title);
-        card.appendChild(count);
-        card.appendChild(detail);
-        diffSummaryGrid.appendChild(card);
-      });
-    };
-
-    const renderEmptyDiffSummary = () => {
-      diffSummaryGrid.innerHTML = '';
-      const empty = document.createElement('p');
-      empty.className = 'muted';
-      empty.textContent = 'Run a diff to see per-column change counts.';
-      diffSummaryGrid.appendChild(empty);
+      return { headers: [keyHeader, ...valueHeaders.flatMap(h => [`${h} (old)`, `${h} (new)`, `${h} (diff)`]), 'status'], diffRows };
     };
 
     const renderTable = (headers, rows) => {
@@ -508,14 +418,13 @@
           readWorkbookRows(state.newFile)
         ]);
 
-        const { headers, diffRows, valueHeaders, columnDiffCounts } = buildDiff(oldRows, newRows);
+        const { headers, diffRows } = buildDiff(oldRows, newRows);
         state.oldRows = oldRows;
         state.newRows = newRows;
         state.headers = headers;
         state.diffRows = diffRows;
 
         renderTable(headers, diffRows);
-        renderDiffSummary(valueHeaders, columnDiffCounts);
 
         const changed = diffRows.filter(r => r.status === 'changed').length;
         const added = diffRows.filter(r => r.status === 'added').length;
@@ -536,7 +445,6 @@
 
     wireDropZone('old-zone', oldInput, 'old');
     wireDropZone('new-zone', newInput, 'new');
-    renderEmptyDiffSummary();
   </script>
 </body>
 </html>
