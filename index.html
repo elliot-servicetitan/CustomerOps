@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ServiceTitan Report Diff</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f6fb;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #64748b;
+      --accent: #2563eb;
+      --border: #cbd5e1;
+      --good: #065f46;
+      --warn: #9a3412;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    h1 { margin: 0; }
+    p { margin: 0; color: var(--muted); }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .upload-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 18px;
+      text-align: center;
+      background: #f8fafc;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .drop-zone.dragover {
+      border-color: var(--accent);
+      background: #eff6ff;
+    }
+
+    .drop-zone h3 { margin: 8px 0; }
+
+    .drop-zone input { display: none; }
+
+    .file-status {
+      font-size: 0.9rem;
+      color: var(--muted);
+      word-break: break-all;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .pill {
+      display: inline-flex;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .pill.good {
+      color: var(--good);
+      border-color: #a7f3d0;
+      background: #ecfdf5;
+    }
+
+    .pill.warn {
+      color: var(--warn);
+      border-color: #fed7aa;
+      background: #fff7ed;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      max-height: 70vh;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .diff-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .diff-summary-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      background: #f8fafc;
+    }
+
+    .diff-summary-card h4 {
+      margin: 0 0 6px;
+      font-size: 0.9rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .diff-summary-count {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 1000px;
+      background: white;
+    }
+
+    th, td {
+      border-bottom: 1px solid #e2e8f0;
+      border-right: 1px solid #e2e8f0;
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 0.9rem;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8fafc;
+      z-index: 1;
+    }
+
+    tr.changed { background: #fff7ed; }
+    tr.added { background: #ecfdf5; }
+    tr.removed { background: #fef2f2; }
+
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="card">
+      <h1>ServiceTitan Report Diff</h1>
+      <p>Drop two report versions (.xlsx) below. The app compares each row by key column and computes diffs for all eight value columns.</p>
+    </section>
+
+    <section class="card upload-grid">
+      <label class="drop-zone" id="old-zone">
+        <span class="pill">Step 1</span>
+        <h3>Old Report</h3>
+        <p class="muted">Drag and drop .xlsx or click to browse</p>
+        <input type="file" id="old-file" accept=".xlsx,.xls" />
+        <p class="file-status" id="old-status">No file selected.</p>
+      </label>
+
+      <label class="drop-zone" id="new-zone">
+        <span class="pill">Step 2</span>
+        <h3>New Report</h3>
+        <p class="muted">Drag and drop .xlsx or click to browse</p>
+        <input type="file" id="new-file" accept=".xlsx,.xls" />
+        <p class="file-status" id="new-status">No file selected.</p>
+      </label>
+    </section>
+
+    <section class="card controls">
+      <button class="primary" id="run-diff" disabled>Generate Diff</button>
+      <button id="download-csv" disabled>Download Diff CSV</button>
+      <button id="download-xlsx" disabled>Download Diff XLSX</button>
+      <span id="summary" class="pill">Waiting for files</span>
+    </section>
+
+    <section class="card">
+      <h3>Diff Summary by Value Column</h3>
+      <p class="muted">Shows how many keys changed for each value column, so you can quickly verify where differences exist.</p>
+      <div id="diff-summary-grid" class="diff-summary-grid"></div>
+    </section>
+
+    <section class="card">
+      <div class="table-wrap">
+        <table id="diff-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script>
+    const state = {
+      oldFile: null,
+      newFile: null,
+      oldRows: null,
+      newRows: null,
+      diffRows: [],
+      headers: []
+    };
+
+    const oldInput = document.getElementById('old-file');
+    const newInput = document.getElementById('new-file');
+    const oldStatus = document.getElementById('old-status');
+    const newStatus = document.getElementById('new-status');
+    const runDiffBtn = document.getElementById('run-diff');
+    const downloadCsvBtn = document.getElementById('download-csv');
+    const downloadXlsxBtn = document.getElementById('download-xlsx');
+    const summaryPill = document.getElementById('summary');
+    const diffSummaryGrid = document.getElementById('diff-summary-grid');
+    const tableHead = document.querySelector('#diff-table thead');
+    const tableBody = document.querySelector('#diff-table tbody');
+
+    const setSummary = (text, kind = '') => {
+      summaryPill.textContent = text;
+      summaryPill.className = `pill ${kind}`.trim();
+    };
+
+    const wireDropZone = (zoneId, inputEl, type) => {
+      const zone = document.getElementById(zoneId);
+
+      const setFile = file => {
+        if (!file) return;
+        if (!/\.(xlsx|xls)$/i.test(file.name)) {
+          setSummary('Only .xlsx/.xls files are supported.', 'warn');
+          return;
+        }
+        if (type === 'old') {
+          state.oldFile = file;
+          oldStatus.textContent = file.name;
+        } else {
+          state.newFile = file;
+          newStatus.textContent = file.name;
+        }
+        runDiffBtn.disabled = !(state.oldFile && state.newFile);
+        setSummary('Files loaded. Ready to diff.', 'good');
+      };
+
+      zone.addEventListener('dragover', event => {
+        event.preventDefault();
+        zone.classList.add('dragover');
+      });
+
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+
+      zone.addEventListener('drop', event => {
+        event.preventDefault();
+        zone.classList.remove('dragover');
+        setFile(event.dataTransfer.files[0]);
+      });
+
+      inputEl.addEventListener('change', event => setFile(event.target.files[0]));
+    };
+
+    const toNumber = value => {
+      if (value === null || value === undefined || value === '') return null;
+      if (typeof value === 'number') return value;
+      const cleaned = String(value).replace(/[$,%\s,]/g, '');
+      const parsed = Number(cleaned);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const formatValue = value => (value === null || value === undefined ? '' : String(value));
+
+    const readWorkbookRows = async file => {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: 'array', cellDates: false });
+      const firstSheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: null });
+      return rows;
+    };
+
+    const buildDiff = (oldRows, newRows) => {
+      if (!oldRows.length || !newRows.length) {
+        throw new Error('Both reports must contain at least one data row.');
+      }
+
+      const headers = Object.keys(newRows[0]);
+      if (headers.length !== 9) {
+        throw new Error(`Expected 9 columns (1 key + 8 values), found ${headers.length}.`);
+      }
+
+      const keyHeader = headers[0];
+      const valueHeaders = headers.slice(1);
+      const columnDiffCounts = Object.fromEntries(valueHeaders.map(header => [header, 0]));
+      const oldMap = new Map(oldRows.map(r => [String(r[keyHeader] ?? ''), r]));
+      const newMap = new Map(newRows.map(r => [String(r[keyHeader] ?? ''), r]));
+      const keys = [...new Set([...oldMap.keys(), ...newMap.keys()])].sort((a, b) => a.localeCompare(b));
+
+      const diffRows = [];
+
+      for (const key of keys) {
+        const before = oldMap.get(key);
+        const after = newMap.get(key);
+
+        if (!before && after) {
+          valueHeaders.forEach(header => {
+            if (formatValue(after[header]) !== '') {
+              columnDiffCounts[header] += 1;
+            }
+          });
+          diffRows.push({
+            status: 'added',
+            [keyHeader]: key,
+            ...Object.fromEntries(valueHeaders.flatMap(h => [[`${h} (old)`, ''], [`${h} (new)`, formatValue(after[h])], [`${h} (diff)`, formatValue(after[h])]]))
+          });
+          continue;
+        }
+
+        if (before && !after) {
+          valueHeaders.forEach(header => {
+            if (formatValue(before[header]) !== '') {
+              columnDiffCounts[header] += 1;
+            }
+          });
+          diffRows.push({
+            status: 'removed',
+            [keyHeader]: key,
+            ...Object.fromEntries(valueHeaders.flatMap(h => [[`${h} (old)`, formatValue(before[h])], [`${h} (new)`, ''], [`${h} (diff)`, formatValue(before[h])]]))
+          });
+          continue;
+        }
+
+        let changed = false;
+        const payload = { status: 'unchanged', [keyHeader]: key };
+
+        for (const header of valueHeaders) {
+          const oldVal = before[header];
+          const newVal = after[header];
+          const oldNum = toNumber(oldVal);
+          const newNum = toNumber(newVal);
+
+          payload[`${header} (old)`] = formatValue(oldVal);
+          payload[`${header} (new)`] = formatValue(newVal);
+
+          if (oldNum !== null && newNum !== null) {
+            const diff = newNum - oldNum;
+            payload[`${header} (diff)`] = diff;
+            if (diff !== 0) {
+              changed = true;
+              columnDiffCounts[header] += 1;
+            }
+          } else {
+            payload[`${header} (diff)`] = oldVal === newVal ? '' : `${formatValue(oldVal)} → ${formatValue(newVal)}`;
+            if (oldVal !== newVal) {
+              changed = true;
+              columnDiffCounts[header] += 1;
+            }
+          }
+        }
+
+        payload.status = changed ? 'changed' : 'unchanged';
+        diffRows.push(payload);
+      }
+
+      return {
+        headers: [keyHeader, ...valueHeaders.flatMap(h => [`${h} (old)`, `${h} (new)`, `${h} (diff)`]), 'status'],
+        diffRows,
+        valueHeaders,
+        columnDiffCounts
+      };
+    };
+
+    const renderDiffSummary = (valueHeaders, columnDiffCounts) => {
+      diffSummaryGrid.innerHTML = '';
+
+      valueHeaders.forEach(header => {
+        const card = document.createElement('article');
+        card.className = 'diff-summary-card';
+
+        const title = document.createElement('h4');
+        title.textContent = header;
+
+        const count = document.createElement('p');
+        count.className = 'diff-summary-count';
+        count.textContent = `${columnDiffCounts[header] ?? 0}`;
+
+        const detail = document.createElement('p');
+        detail.className = 'muted';
+        detail.textContent = 'keys with diffs';
+
+        card.appendChild(title);
+        card.appendChild(count);
+        card.appendChild(detail);
+        diffSummaryGrid.appendChild(card);
+      });
+    };
+
+    const renderEmptyDiffSummary = () => {
+      diffSummaryGrid.innerHTML = '';
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'Run a diff to see per-column change counts.';
+      diffSummaryGrid.appendChild(empty);
+    };
+
+    const renderTable = (headers, rows) => {
+      tableHead.innerHTML = '';
+      tableBody.innerHTML = '';
+
+      const headRow = document.createElement('tr');
+      headers.forEach(header => {
+        const th = document.createElement('th');
+        th.textContent = header;
+        headRow.appendChild(th);
+      });
+      tableHead.appendChild(headRow);
+
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.classList.add(row.status);
+        headers.forEach(header => {
+          const td = document.createElement('td');
+          td.textContent = formatValue(row[header]);
+          tr.appendChild(td);
+        });
+        tableBody.appendChild(tr);
+      });
+    };
+
+    const exportRows = () => {
+      const exportRows = state.diffRows.map(row => {
+        const data = {};
+        state.headers.forEach(header => {
+          data[header] = row[header] ?? '';
+        });
+        return data;
+      });
+      return exportRows;
+    };
+
+    const downloadCsv = () => {
+      const ws = XLSX.utils.json_to_sheet(exportRows());
+      const csv = XLSX.utils.sheet_to_csv(ws);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `report-diff-${Date.now()}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    };
+
+    const downloadXlsx = () => {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportRows());
+      XLSX.utils.book_append_sheet(wb, ws, 'Diff');
+      XLSX.writeFile(wb, `report-diff-${Date.now()}.xlsx`);
+    };
+
+    runDiffBtn.addEventListener('click', async () => {
+      try {
+        runDiffBtn.disabled = true;
+        setSummary('Parsing files...');
+
+        const [oldRows, newRows] = await Promise.all([
+          readWorkbookRows(state.oldFile),
+          readWorkbookRows(state.newFile)
+        ]);
+
+        const { headers, diffRows, valueHeaders, columnDiffCounts } = buildDiff(oldRows, newRows);
+        state.oldRows = oldRows;
+        state.newRows = newRows;
+        state.headers = headers;
+        state.diffRows = diffRows;
+
+        renderTable(headers, diffRows);
+        renderDiffSummary(valueHeaders, columnDiffCounts);
+
+        const changed = diffRows.filter(r => r.status === 'changed').length;
+        const added = diffRows.filter(r => r.status === 'added').length;
+        const removed = diffRows.filter(r => r.status === 'removed').length;
+
+        setSummary(`Diff ready: ${diffRows.length} keys (${changed} changed, ${added} added, ${removed} removed).`, 'good');
+        downloadCsvBtn.disabled = false;
+        downloadXlsxBtn.disabled = false;
+      } catch (error) {
+        setSummary(error.message || 'Could not build diff report.', 'warn');
+      } finally {
+        runDiffBtn.disabled = !(state.oldFile && state.newFile);
+      }
+    });
+
+    downloadCsvBtn.addEventListener('click', downloadCsv);
+    downloadXlsxBtn.addEventListener('click', downloadXlsx);
+
+    wireDropZone('old-zone', oldInput, 'old');
+    wireDropZone('new-zone', newInput, 'new');
+    renderEmptyDiffSummary();
+  </script>
+</body>
+</html>
