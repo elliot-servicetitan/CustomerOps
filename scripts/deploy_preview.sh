@@ -17,3 +17,4 @@ echo "Started local server on port $PORT (pid: $HTTP_PID)"
 echo "Opening public tunnel..."
 
 npx --yes localtunnel --port "$PORT"
+
